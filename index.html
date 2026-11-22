@@ -3,7 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vathy</title>
+<title>Vathy</title><link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<meta name="theme-color" content="#0b1730">
+<meta name="mobile-web-app-capable" content="yes">
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");</script>
 <style>
   :root { --bg:#eaf2ff; --panel:#fff; --text:#12233f; --muted:#5b6f8f; --accent:#1e63e9; --me:#1e63e9; --bot:#dbe8ff; --line:#c3d6f7; }
   @media (prefers-color-scheme: dark) {
