@@ -15,8 +15,8 @@
   header { display: flex; gap: 8px; padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
   input, select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; min-width: 0; }
   header input { flex: 1; }
-  #stage { display: flex; flex-direction: column; align-items: center; padding: 8px 14px 4px; gap: 6px; }
-  #doll { width: 170px; height: 170px; cursor: pointer; -webkit-tap-highlight-color: transparent; background: none; border: 0; padding: 0; }
+  #stage { display: flex; flex-direction: column; align-items: center; padding: 10px 14px 0; gap: 4px; }
+  #doll { width: 200px; height: 200px; cursor: pointer; -webkit-tap-highlight-color: transparent; background: none; border: 0; padding: 0; }
   #doll svg { width: 100%; height: 100%; overflow: visible; }
   #doll.asleep svg { animation: breathe 3.5s ease-in-out infinite; transform-origin: 50% 90%; }
   @keyframes breathe { 50% { transform: scale(1.03); } }
@@ -26,23 +26,16 @@
   #doll:not(.asleep) .eyes-closed, #doll:not(.asleep) .zzz { display: none; }
   #doll.asleep .zzz { display: inline; }
   #doll.talking .mouth-open { display: inline; }
-  #doll.talking .mouth-smile { display: none; }
-  #codeRow { display: flex; gap: 6px; width: 100%; max-width: 320px; }
-  #codeRow input { flex: 1; text-align: center; }
-  #codeRow button { padding: 8px 14px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+  #wakeBtn { background: none; border: 0; color: var(--accent); font: inherit; font-weight: 600; padding: 8px 14px; cursor: pointer; }
+  #wakeBtn[hidden] { display: none; }
   #log { flex: 1; overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
   .msg { max-width: 85%; padding: 10px 14px; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
   .user { align-self: flex-end; background: var(--me); color: #fff; }
   .bot { align-self: flex-start; background: var(--bot); }
+  .openbtn { align-self: flex-start; border: 0; border-radius: 14px; background: var(--accent); color: #fff; font: inherit; padding: 10px 18px; cursor: pointer; }
   .hint { margin: auto; color: var(--muted); text-align: center; padding: 0 20px; }
-  footer { padding: 12px; background: var(--panel); border-top: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; gap: 8px; }
-  #status { color: var(--muted); min-height: 1.5em; text-align: center; }
-  #mic { width: 76px; height: 76px; border-radius: 50%; border: 0; background: var(--accent); color: #fff; font-size: 30px; cursor: pointer; }
-  #mic.listening { background: #d93a3a; animation: pulse 1.2s infinite; }
-  #mic.busy { opacity: .6; }
-  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(217,58,58,.5); } 100% { box-shadow: 0 0 0 22px rgba(217,58,58,0); } }
-  @media (prefers-reduced-motion: reduce) { #mic.listening { animation: none; } }
-  #stop { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
+  footer { padding: 10px 12px; background: var(--panel); border-top: 1px solid var(--line); text-align: center; }
+  #status { color: var(--muted); min-height: 1.5em; }
   button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 </style>
 </head>
@@ -50,16 +43,21 @@
 <header>
   <input id="key" type="password" placeholder="Paste your Groq API key" autocomplete="off">
   <select id="lang" aria-label="Language">
-    <option value="en-US">English</option>
-    <option value="ta-IN">Tamil</option>
-    <option value="hi-IN">Hindi</option>
-    <option value="te-IN">Telugu</option>
-    <option value="ml-IN">Malayalam</option>
+    <option value="en">English</option>
+    <option value="ta">Tamil</option>
+    <option value="tl">Tanglish</option>
+    <option value="hi">Hindi</option>
+    <option value="te">Telugu</option>
+    <option value="ml">Malayalam</option>
+    <option value="kn">Kannada</option>
+    <option value="bn">Bengali</option>
+    <option value="mr">Marathi</option>
+    <option value="gu">Gujarati</option>
   </select>
 </header>
 
 <div id="stage">
-  <button id="doll" class="asleep" aria-label="Tap the doll">
+  <button id="doll" class="asleep" aria-label="Vathy">
     <svg viewBox="0 0 200 200" aria-hidden="true">
       <defs>
         <radialGradient id="face" cx="50%" cy="62%" r="62%">
@@ -83,31 +81,65 @@
       </g>
     </svg>
   </button>
-  <div id="codeRow">
-    <input id="code" placeholder="Activation code" autocomplete="off" autocapitalize="none">
-    <button id="wake" type="button">Wake</button>
-  </div>
+  <button id="wakeBtn" type="button">Tap to wake</button>
 </div>
 
-<div id="log"><div class="hint">Tap the doll to hear who made it. Then say or type the activation code to wake it.</div></div>
-<footer>
-  <div id="status">Asleep</div>
-  <button id="mic" aria-label="Talk">🎤</button>
-  <button id="stop" type="button">Stop speaking</button>
-</footer>
+<div id="log"><div class="hint">Tap "Tap to wake" and allow the microphone. After Vathy sleeps, say "Vathy" to wake it again.</div></div>
+<footer><div id="status">Asleep</div></footer>
 
 <script>
 const MODEL = "openai/gpt-oss-120b";
 const API_URL = "https://api.groq.com/openai/v1/chat/completions";
-const ACTIVATION_CODE = "vathy";
-const CREDIT = "This is created by S.Gugan";
+const CREDIT = "This is created by S.Gugan.";
+const WAKE = /va+t+h?[iy]|வாதி|வதி|வத்தி/i;           // Vathy, Vathi, Vaathi, Vati
+const SLEEP = /\b(go to sleep|good ?bye|bye bye|sleep now)\b/i;
+
+const LANGS = {
+  en: { rec: "en-IN", tts: "en-IN", how: "Reply in English." },
+  ta: { rec: "ta-IN", tts: "ta-IN", how: "Reply in Tamil." },
+  tl: { rec: "ta-IN", tts: "en-IN", how: "Reply in Tanglish: Tamil written in English letters mixed with simple English words, the way Tamil people text. Never use Tamil script." },
+  hi: { rec: "hi-IN", tts: "hi-IN", how: "Reply in Hindi." },
+  te: { rec: "te-IN", tts: "te-IN", how: "Reply in Telugu." },
+  ml: { rec: "ml-IN", tts: "ml-IN", how: "Reply in Malayalam." },
+  kn: { rec: "kn-IN", tts: "kn-IN", how: "Reply in Kannada." },
+  bn: { rec: "bn-IN", tts: "bn-IN", how: "Reply in Bengali." },
+  mr: { rec: "mr-IN", tts: "mr-IN", how: "Reply in Marathi." },
+  gu: { rec: "gu-IN", tts: "gu-IN", how: "Reply in Gujarati." }
+};
+
+// Apps Vathy can open (Android). The link opens the app if it is installed, otherwise the website.
+const APPS = {
+  instagram: { label: "Instagram", url: "intent://instagram.com/#Intent;package=com.instagram.android;scheme=https;S.browser_fallback_url=https%3A%2F%2Fwww.instagram.com;end" },
+  youtube:   { label: "YouTube",   url: "intent://www.youtube.com/#Intent;package=com.google.android.youtube;scheme=https;S.browser_fallback_url=https%3A%2F%2Fm.youtube.com;end" },
+  whatsapp:  { label: "WhatsApp",  url: "intent://send/#Intent;package=com.whatsapp;scheme=whatsapp;S.browser_fallback_url=https%3A%2F%2Fwww.whatsapp.com;end" },
+  facebook:  { label: "Facebook",  url: "intent://feed/#Intent;package=com.facebook.katana;scheme=fb;S.browser_fallback_url=https%3A%2F%2Fm.facebook.com;end" },
+  telegram:  { label: "Telegram",  url: "tg://" },
+  twitter:   { label: "X (Twitter)", url: "intent://x.com/#Intent;package=com.twitter.android;scheme=https;S.browser_fallback_url=https%3A%2F%2Fx.com;end" },
+  snapchat:  { label: "Snapchat",  url: "intent://snapchat.com/#Intent;package=com.snapchat.android;scheme=https;S.browser_fallback_url=https%3A%2F%2Fsnapchat.com;end" },
+  spotify:   { label: "Spotify",   url: "intent://open.spotify.com/#Intent;package=com.spotify.music;scheme=https;S.browser_fallback_url=https%3A%2F%2Fopen.spotify.com;end" },
+  gmail:     { label: "Gmail",     url: "mailto:" },
+  maps:      { label: "Maps",      url: "https://www.google.com/maps" },
+  phone:     { label: "Phone",     url: "tel:" },
+  messages:  { label: "Messages",  url: "sms:" },
+  playstore: { label: "Play Store", url: "https://play.google.com/store" },
+  google:    { label: "Google",    url: "https://www.google.com" }
+};
 
 const $ = id => document.getElementById(id);
-const log = $("log"), statusEl = $("status"), mic = $("mic"), keyInput = $("key"), langSel = $("lang"), doll = $("doll");
-let history = [{ role: "system", content: "You are Vathy, a friendly voice assistant. Reply in the same language the user speaks. Keep answers short and natural for speaking: no markdown, no lists, no emojis." }];
-let recognition = null, busy = false, asleep = true;
+const log = $("log"), statusEl = $("status"), keyInput = $("key"), langSel = $("lang"), doll = $("doll"), wakeBtn = $("wakeBtn");
+const cfg = () => LANGS[langSel.value];
+let history = [];
+let recognition = null, started = false, asleep = true, speaking = false, busy = false, wantListen = false;
 
-// Build the woolly blue hair from fluffy circles
+function systemPrompt() {
+  return "You are Vathy, a friendly voice assistant created by S.Gugan. " + cfg().how +
+    " Keep answers short and natural for speaking: no markdown, no lists, no emojis. " +
+    "If the user asks you to open an app, in any language including Tanglish, begin your reply with the tag [OPEN:key] " +
+    "using one of these keys: " + Object.keys(APPS).join(", ") + ". Then say briefly that you are opening it. " +
+    "If the app is not in that list, say you cannot open it. You cannot do anything else on the phone.";
+}
+
+// Woolly blue hair made of fluffy circles
 (function buildWool() {
   const g = $("wool"), shades = ["#2a5fc8", "#3d7df0", "#5b9aff", "#1e4fb0", "#4a8cf5"];
   const add = (cx, cy, r, i) => {
@@ -122,13 +154,14 @@ let recognition = null, busy = false, asleep = true;
       add(100 + Math.cos(a) * rad, 114 + Math.sin(a) * rad, r + (i % 3) * 2, i + off);
     }
   };
-  ring(6, 0.18, 0.64, 76, 12, 1);     // puffy tufts on top
-  ring(13, 0, 1, 62, 17, 0);          // main woolly arc
-  ring(9, 0.15, 0.7, 46, 15, 2);      // fringe over the forehead
+  ring(6, 0.18, 0.64, 76, 12, 1);
+  ring(13, 0, 1, 62, 17, 0);
+  ring(9, 0.15, 0.7, 46, 15, 2);
 })();
 
-try { keyInput.value = localStorage.getItem("groq_key") || ""; } catch (e) {}
+try { keyInput.value = localStorage.getItem("groq_key") || ""; langSel.value = localStorage.getItem("vathy_lang") || "en"; } catch (e) {}
 keyInput.addEventListener("change", () => { try { localStorage.setItem("groq_key", keyInput.value.trim()); } catch (e) {} });
+langSel.addEventListener("change", () => { try { localStorage.setItem("vathy_lang", langSel.value); } catch (e) {} stopListening(); listen(); });
 
 function add(role, text) {
   log.querySelector(".hint")?.remove();
@@ -140,84 +173,133 @@ function add(role, text) {
 }
 function setStatus(t) { statusEl.textContent = t; }
 
-function speak(text, lang) {
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = lang || langSel.value;
-  u.onstart = () => { doll.classList.add("talking"); setStatus("Speaking..."); };
-  u.onend = u.onerror = () => { doll.classList.remove("talking"); setStatus(asleep ? "Asleep" : "Ready"); };
-  speechSynthesis.speak(u);
+function openApp(key) { window.location.href = APPS[key].url; }
+function addOpenButton(key) {
+  const b = document.createElement("button");
+  b.className = "openbtn";
+  b.textContent = "Open " + APPS[key].label;
+  b.addEventListener("click", () => openApp(key));
+  log.appendChild(b);
+  log.scrollTop = log.scrollHeight;
 }
-
-const norm = s => s.toLowerCase().replace(/[^a-z]/g, "");
-function codeMatches(s) { const n = norm(s); return n === ACTIVATION_CODE || n === "vathi"; }
-
-function checkCode(s) {
-  if (codeMatches(s)) {
-    asleep = false;
-    doll.classList.remove("asleep");
-    $("codeRow").style.display = "none";
-    $("code").value = "";
-    log.querySelector(".hint")?.remove();
-    add("bot", "I'm awake! Tap the mic and talk to me.");
-    speak("Hello, I am awake. How can I help you?", "en-US");
-  } else {
-    setStatus("Wrong code. Try again.");
-    speak("Wrong code.", "en-US");
-  }
-}
-
-doll.addEventListener("click", () => speak(CREDIT, "en-US"));
-$("wake").addEventListener("click", () => checkCode($("code").value));
-$("code").addEventListener("keydown", e => { if (e.key === "Enter") checkCode($("code").value); });
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 if (!SR) setStatus("Speech recognition is not supported here. Use Chrome on Android.");
 
+function stopListening() {
+  if (recognition) { const r = recognition; recognition = null; r.onend = null; try { r.abort(); } catch (e) {} }
+}
+
+function listen() {
+  if (!SR || !wantListen || speaking || busy || recognition) return;
+  const r = new SR();
+  recognition = r;
+  r.lang = asleep ? "en-IN" : cfg().rec;
+  r.interimResults = false;
+  r.maxAlternatives = 3;
+  r.onstart = () => setStatus(asleep ? 'Asleep. Say "Vathy"' : "Listening...");
+  r.onresult = e => handle([...e.results[0]].map(a => a.transcript));
+  r.onerror = e => {
+    if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+      wantListen = false; started = false;
+      setStatus("Microphone is blocked. Allow it in Chrome site settings, then tap to wake.");
+    }
+  };
+  r.onend = () => { recognition = null; if (wantListen && !speaking && !busy) setTimeout(listen, 300); };
+  try { r.start(); } catch (e) { recognition = null; }
+}
+
+function speak(text, lang, done) {
+  stopListening();
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = lang || cfg().tts;
+  speaking = true;
+  u.onstart = () => { doll.classList.add("talking"); setStatus("Speaking..."); };
+  u.onend = u.onerror = () => {
+    speaking = false; doll.classList.remove("talking");
+    if (done) done();
+    listen();
+  };
+  speechSynthesis.speak(u);
+}
+
+function wake() {
+  asleep = false;
+  doll.classList.remove("asleep");
+  wakeBtn.hidden = true;
+  const greeting = CREDIT + " Hello! I am Vathy. How can I help you today?";
+  add("bot", greeting);
+  speak(greeting, "en-IN");
+}
+
+function goToSleep() {
+  asleep = true;
+  doll.classList.add("asleep");
+  wakeBtn.hidden = false;
+  const msg = 'Okay, going to sleep. Say "Vathy" to wake me up.';
+  add("bot", msg);
+  speak(msg, "en-IN");
+}
+
+function handle(alts) {
+  if (asleep) { if (alts.some(t => WAKE.test(t))) wake(); return; }
+  const text = alts[0].trim();
+  if (!text) return;
+  if (SLEEP.test(text)) { add("user", text); goToSleep(); return; }
+  ask(text);
+}
+
 async function ask(text) {
   const apiKey = keyInput.value.trim();
-  if (!apiKey) { setStatus("Paste your Groq API key first."); return; }
+  if (!apiKey) { setStatus("Paste your Groq API key at the top."); return; }
   history.push({ role: "user", content: text });
+  history = history.slice(-20);
   add("user", text);
-  busy = true; mic.classList.add("busy"); setStatus("Thinking...");
+  busy = true; stopListening(); setStatus("Thinking...");
   try {
     const res = await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
-      body: JSON.stringify({ model: MODEL, messages: history })
+      body: JSON.stringify({ model: MODEL, messages: [{ role: "system", content: systemPrompt() }, ...history] })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error?.message || res.statusText);
-    const reply = data.choices[0].message.content.trim();
+    const raw = data.choices[0].message.content.trim();
+    const m = raw.match(/\[OPEN:([a-z_]+)\]/i);
+    const reply = raw.replace(/\[OPEN:[^\]]*\]/gi, "").trim() || "OK";
     history.push({ role: "assistant", content: reply });
     add("bot", reply);
-    speak(reply);
+    const key = m && APPS[m[1].toLowerCase()] ? m[1].toLowerCase() : null;
+    if (key) addOpenButton(key);
+    busy = false;
+    speak(reply, null, key ? () => openApp(key) : null);
   } catch (err) {
     history.pop();
     add("bot", "Error: " + err.message);
-    setStatus("Ready");
-  } finally {
-    busy = false; mic.classList.remove("busy");
+    busy = false;
+    listen();
   }
 }
 
-function listen() {
-  if (!SR || busy) return;
-  speechSynthesis.cancel();
-  recognition = new SR();
-  recognition.lang = asleep ? "en-US" : langSel.value;
-  recognition.interimResults = false;
-  recognition.onstart = () => { mic.classList.add("listening"); setStatus(asleep ? "Say the activation code..." : "Listening..."); };
-  recognition.onresult = e => { const t = e.results[0][0].transcript; asleep ? checkCode(t) : ask(t); };
-  recognition.onerror = e => setStatus(e.error === "not-allowed" ? "Allow microphone access, then try again." : "Could not hear you (" + e.error + ").");
-  recognition.onend = () => mic.classList.remove("listening");
-  recognition.start();
+async function start() {
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });   // asks for microphone permission
+    s.getTracks().forEach(t => t.stop());
+  } catch (e) {
+    setStatus("Microphone is blocked. Allow it in Chrome site settings, then tap to wake.");
+    return;
+  }
+  started = true; wantListen = true;
 }
 
-mic.addEventListener("click", () => {
-  if (mic.classList.contains("listening")) recognition.stop(); else listen();
-});
-$("stop").addEventListener("click", () => { speechSynthesis.cancel(); doll.classList.remove("talking"); setStatus(asleep ? "Asleep" : "Ready"); });
+async function tapWake() {
+  if (!started) await start();
+  if (started && asleep) wake();
+  else if (started) speak(CREDIT, "en-IN");
+}
+doll.addEventListener("click", tapWake);
+wakeBtn.addEventListener("click", tapWake);
 </script>
 </body>
-  </html>
+</html>
