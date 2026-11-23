@@ -3,11 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vathy</title><link rel="manifest" href="manifest.webmanifest">
+<title>Vathy</title>
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <meta name="theme-color" content="#0b1730">
 <meta name="mobile-web-app-capable" content="yes">
 <script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root { --bg:#eaf2ff; --panel:#fff; --text:#12233f; --muted:#5b6f8f; --accent:#1e63e9; --me:#1e63e9; --bot:#dbe8ff; --line:#c3d6f7; }
   @media (prefers-color-scheme: dark) {
@@ -19,8 +21,15 @@
   header { display: flex; gap: 8px; padding: 10px 14px; background: var(--panel); border-bottom: 1px solid var(--line); }
   input, select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); font: inherit; min-width: 0; }
   header input { flex: 1; }
+  #authbar { display: flex; align-items: center; gap: 10px; padding: 8px 14px; min-height: 58px; background: var(--panel); border-bottom: 1px solid var(--line); }
+  #authbar img { width: 36px; height: 36px; border-radius: 50%; }
+  .who { flex: 1; min-width: 0; line-height: 1.25; }
+  .who b, .who small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who small { color: var(--muted); }
+  #authbar .note { flex: 1; color: var(--muted); font-size: 14px; }
+  #signout { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 8px; padding: 6px 12px; font: inherit; cursor: pointer; }
   #stage { display: flex; flex-direction: column; align-items: center; padding: 10px 14px 0; gap: 4px; }
-  #doll { width: 200px; height: 200px; cursor: pointer; -webkit-tap-highlight-color: transparent; background: none; border: 0; padding: 0; }
+  #doll { width: 170px; height: 170px; cursor: pointer; -webkit-tap-highlight-color: transparent; background: none; border: 0; padding: 0; }
   #doll svg { width: 100%; height: 100%; overflow: visible; }
   #doll.asleep svg { animation: breathe 3.5s ease-in-out infinite; transform-origin: 50% 90%; }
   @keyframes breathe { 50% { transform: scale(1.03); } }
@@ -44,6 +53,7 @@
 </style>
 </head>
 <body>
+<div id="authbar"></div>
 <header>
   <input id="key" type="password" placeholder="Paste your Groq API key" autocomplete="off">
   <select id="lang" aria-label="Language">
@@ -88,7 +98,7 @@
   <button id="wakeBtn" type="button">Tap to wake</button>
 </div>
 
-<div id="log"><div class="hint">Tap "Tap to wake" and allow the microphone. After Vathy sleeps, say "Vathy" to wake it again.</div></div>
+<div id="log"><div class="hint">Sign in, then tap "Tap to wake" and allow the microphone. After Vathy sleeps, say "Vathy" to wake it again.</div></div>
 <footer><div id="status">Asleep</div></footer>
 
 <script>
@@ -135,12 +145,126 @@ const cfg = () => LANGS[langSel.value];
 let history = [];
 let recognition = null, started = false, asleep = true, speaking = false, busy = false, wantListen = false;
 
+// ---- Google sign-in for the operator ----
+const GOOGLE_CLIENT_ID = "715738142956-u519rs0vcue3adhmk85uuot9q23euvpn.apps.googleusercontent.com";   // from Google Cloud Console
+const ALLOWED_EMAILS = [];                                // optional, e.g. ["you@gmail.com"]. Empty = any Google account
+const authConfigured = !GOOGLE_CLIENT_ID.startsWith("PASTE_");
+const authbar = $("authbar");
+let user = null;
+try { user = JSON.parse(localStorage.getItem("vathy_user") || "null"); } catch (e) {}
+
+function parseJwt(t) {
+  const p = t.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+  return JSON.parse(decodeURIComponent(atob(p).split("").map(c => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2)).join("")));
+}
+
+function renderAuth() {
+  authbar.textContent = "";
+  if (user) {
+    const img = document.createElement("img");
+    img.referrerPolicy = "no-referrer"; img.alt = ""; img.src = user.picture || "";
+    const who = document.createElement("div"); who.className = "who";
+    const b = document.createElement("b"); b.textContent = user.name;
+    const sm = document.createElement("small"); sm.textContent = user.email;
+    who.append(b, sm);
+    const out = document.createElement("button"); out.id = "signout"; out.textContent = "Sign out";
+    out.addEventListener("click", () => {
+      try { localStorage.removeItem("vathy_user"); } catch (e) {}
+      window.google?.accounts?.id?.disableAutoSelect();
+      location.reload();
+    });
+    authbar.append(img, who, out);
+  } else if (!authConfigured) {
+    const n = document.createElement("div"); n.className = "note";
+    n.textContent = "Google sign-in is not set up yet. Add your Client ID in the code.";
+    authbar.append(n);
+  } else {
+    const n = document.createElement("div"); n.className = "note"; n.textContent = "Operator sign-in";
+    const g = document.createElement("div"); g.id = "gbtn";
+    authbar.append(n, g);
+    if (window.google?.accounts?.id) {
+      google.accounts.id.renderButton(g, { theme: "filled_blue", size: "large", shape: "pill", text: "signin_with" });
+    }
+  }
+}
+
+function onCredential(resp) {
+  const p = parseJwt(resp.credential);
+  if (ALLOWED_EMAILS.length && !ALLOWED_EMAILS.includes(p.email)) { setStatus("This Google account is not allowed."); return; }
+  user = { name: p.name || p.email, email: p.email, picture: p.picture || "" };
+  try { localStorage.setItem("vathy_user", JSON.stringify(user)); } catch (e) {}
+  renderAuth();
+  setStatus("Signed in. Tap to wake.");
+}
+
+function initGoogle() {
+  if (!authConfigured) return;
+  if (window.google?.accounts?.id) {
+    google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: onCredential, auto_select: false });
+    renderAuth();
+  } else setTimeout(initGoogle, 200);
+}
+renderAuth();
+initGoogle();
+
+// ---- Live internet tools (Open-Meteo, free, no key) ----
+const TOOLS = [
+  { type: "function", function: { name: "get_time", description: "Get the current local time and date in any city or country in the world.",
+    parameters: { type: "object", properties: { place: { type: "string", description: "City name, or a country's capital or main city, in English, e.g. Tokyo" } }, required: ["place"] } } },
+  { type: "function", function: { name: "get_weather", description: "Get the live current weather for any city in the world.",
+    parameters: { type: "object", properties: { place: { type: "string", description: "City name in English, e.g. Chennai" } }, required: ["place"] } } }
+];
+
+async function geocode(place) {
+  const r = await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&name=" + encodeURIComponent(place));
+  const d = await r.json();
+  if (!d.results || !d.results.length) throw new Error("Place not found: " + place);
+  return d.results[0];
+}
+
+function weatherText(c) {
+  if (c === 0) return "clear sky";
+  if (c <= 2) return "partly cloudy";
+  if (c === 3) return "overcast";
+  if (c === 45 || c === 48) return "foggy";
+  if (c >= 51 && c <= 57) return "drizzle";
+  if (c >= 61 && c <= 67) return "rain";
+  if (c >= 71 && c <= 77) return "snow";
+  if (c >= 80 && c <= 82) return "rain showers";
+  if (c === 85 || c === 86) return "snow showers";
+  if (c >= 95) return "thunderstorm";
+  return "unknown";
+}
+
+async function runTool(name, args) {
+  const g = await geocode(args.place);
+  if (name === "get_time") {
+    const now = new Date(), tz = g.timezone;
+    return {
+      place: g.name, country: g.country, timezone: tz,
+      time: now.toLocaleTimeString("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }),
+      date: now.toLocaleDateString("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric", year: "numeric" })
+    };
+  }
+  if (name === "get_weather") {
+    const r = await fetch("https://api.open-meteo.com/v1/forecast?latitude=" + g.latitude + "&longitude=" + g.longitude +
+      "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto");
+    const c = (await r.json()).current;
+    return { place: g.name, country: g.country, temperature_c: c.temperature_2m, feels_like_c: c.apparent_temperature,
+      humidity_percent: c.relative_humidity_2m, wind_kmh: c.wind_speed_10m, condition: weatherText(c.weather_code) };
+  }
+  return { error: "Unknown tool" };
+}
+
 function systemPrompt() {
   return "You are Vathy, a friendly voice assistant created by S.Gugan. " + cfg().how +
     " Keep answers short and natural for speaking: no markdown, no lists, no emojis. " +
     "If the user asks you to open an app, in any language including Tanglish, begin your reply with the tag [OPEN:key] " +
     "using one of these keys: " + Object.keys(APPS).join(", ") + ". Then say briefly that you are opening it. " +
-    "If the app is not in that list, say you cannot open it. You cannot do anything else on the phone.";
+    "If the app is not in that list, say you cannot open it. You cannot do anything else on the phone. " +
+    "For the time or date in any place, call get_time. For weather, call get_weather. Use the tools instead of guessing. If asked the time or date without naming a place, answer with the user's own local time below. " +
+    "The user's own local time right now is " + new Date().toLocaleString("en-US", { dateStyle: "full", timeStyle: "short" }) +
+    " (time zone " + Intl.DateTimeFormat().resolvedOptions().timeZone + ").";
 }
 
 // Woolly blue hair made of fluffy circles
@@ -232,7 +356,8 @@ function wake() {
   asleep = false;
   doll.classList.remove("asleep");
   wakeBtn.hidden = true;
-  const greeting = CREDIT + " Hello! I am Vathy. How can I help you today?";
+  const first = user ? user.name.split(" ")[0] : "";
+  const greeting = CREDIT + " Hello" + (first ? " " + first : "") + "! I am Vathy. How can I help you today?";
   add("bot", greeting);
   speak(greeting, "en-IN");
 }
@@ -247,7 +372,7 @@ function goToSleep() {
 }
 
 function handle(alts) {
-  if (asleep) { if (alts.some(t => WAKE.test(t))) wake(); return; }
+  if (asleep) { if ((user || !authConfigured) && alts.some(t => WAKE.test(t))) wake(); return; }
   const text = alts[0].trim();
   if (!text) return;
   if (SLEEP.test(text)) { add("user", text); goToSleep(); return; }
@@ -262,48 +387,4 @@ async function ask(text) {
   add("user", text);
   busy = true; stopListening(); setStatus("Thinking...");
   try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: "Bearer " + apiKey },
-      body: JSON.stringify({ model: MODEL, messages: [{ role: "system", content: systemPrompt() }, ...history] })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || res.statusText);
-    const raw = data.choices[0].message.content.trim();
-    const m = raw.match(/\[OPEN:([a-z_]+)\]/i);
-    const reply = raw.replace(/\[OPEN:[^\]]*\]/gi, "").trim() || "OK";
-    history.push({ role: "assistant", content: reply });
-    add("bot", reply);
-    const key = m && APPS[m[1].toLowerCase()] ? m[1].toLowerCase() : null;
-    if (key) addOpenButton(key);
-    busy = false;
-    speak(reply, null, key ? () => openApp(key) : null);
-  } catch (err) {
-    history.pop();
-    add("bot", "Error: " + err.message);
-    busy = false;
-    listen();
-  }
-}
-
-async function start() {
-  try {
-    const s = await navigator.mediaDevices.getUserMedia({ audio: true });   // asks for microphone permission
-    s.getTracks().forEach(t => t.stop());
-  } catch (e) {
-    setStatus("Microphone is blocked. Allow it in Chrome site settings, then tap to wake.");
-    return;
-  }
-  started = true; wantListen = true;
-}
-
-async function tapWake() {
-  if (!started) await start();
-  if (started && asleep) wake();
-  else if (started) speak(CREDIT, "en-IN");
-}
-doll.addEventListener("click", tapWake);
-wakeBtn.addEventListener("click", tapWake);
-</script>
-</body>
-</html>
+    const msgs = [{ role: "system", content: sy
