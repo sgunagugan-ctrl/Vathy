@@ -13,8 +13,11 @@
     return realFetch(input, init);
   };
 
-  // The app thinks a key is present, and the key boxes are hidden
-  const groqBox = document.getElementById("key");
-  const tavBox = document.querySelector('header input[placeholder^="Tavily"]');
-  [groqBox, tavBox].forEach(b => { if (b) { b.value = "server"; b.style.display = "none"; } });
+  // The app thinks a key is present, and every key box in the top bar is hidden
+  function hideKeyBoxes() {
+    document.querySelectorAll("header input").forEach(b => { b.value = "server"; b.style.display = "none"; });
+  }
+  hideKeyBoxes();
+  window.addEventListener("load", hideKeyBoxes);   // runs again after every add-on has loaded
+  setTimeout(hideKeyBoxes, 800);
 })();
